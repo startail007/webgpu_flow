@@ -1,11 +1,8 @@
-const require = (src) => {
-  return fetch(src).then((response) => {
-    if (!response.ok) {
-      throw new Error("error");
-    }
-    return response.text();
-  });
-};
+import Shader from "./Shader.js";
+import Geometry from "./Geometry.js";
+import Texture from "./Texture.js";
+import { require } from "./fun.js";
+
 const initGPU = async () => {
   if (!navigator.gpu) {
     console.error("WebGPU cannot be initialized - navigator.gpu not found");
@@ -31,224 +28,67 @@ const initGPU = async () => {
 
   const devicePixelRatio = window.devicePixelRatio || 1;
   const presentationSize = [canvas.clientWidth * devicePixelRatio, canvas.clientHeight * devicePixelRatio];
-  const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   context.configure({
     device,
-    format: presentationFormat,
+    format: "bgra8unorm",
     size: presentationSize,
   });
-  return { canvas, context, device, presentationFormat };
-};
-const createVertexBuffer = (device, data) => {
-  const vertices = new Float32Array(data);
-  const vertexBuffer = device.createBuffer({
-    size: vertices.byteLength,
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: true,
-  });
-  new Float32Array(vertexBuffer.getMappedRange()).set(vertices);
-  vertexBuffer.unmap();
-  return vertexBuffer;
-};
-const createIndexBuffer = (device, data) => {
-  const indexBufferData = new Uint16Array(data);
-  const indexBuffer = device.createBuffer({
-    size: indexBufferData.byteLength,
-    usage: GPUBufferUsage.INDEX,
-    mappedAtCreation: true,
-  });
-  new Uint16Array(indexBuffer.getMappedRange()).set(indexBufferData);
-  indexBuffer.unmap();
-  return indexBuffer;
-};
-const createBuffers = (device) => {
-  const vertexBuffer = createVertexBuffer(device, [-0.1, 0.1, 0.1, 0.1, 0.1, -0.1, -0.1, -0.1]);
-  const colorBuffer = createVertexBuffer(device, [1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1]);
-  const uvBuffer = createVertexBuffer(device, [0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
-  const indexBuffer = createIndexBuffer(device, [0, 1, 2, 0, 2, 3]);
-  return { vertexBuffer, colorBuffer, indexBuffer, uvBuffer };
-};
-const createPipeline = (device, presentationFormat, shaderVertexCode, shaderFragmentCode) => {
-  const vertexBuffersDescriptors = [
-    {
-      attributes: [
-        {
-          shaderLocation: 0,
-          offset: 0,
-          format: "float32x2",
-        },
-      ],
-      arrayStride: 4 * 2,
-      stepMode: "vertex",
-    },
-    {
-      attributes: [
-        {
-          shaderLocation: 1,
-          offset: 0,
-          format: "float32x4",
-        },
-      ],
-      arrayStride: 4 * 4,
-      stepMode: "vertex",
-    },
-    {
-      attributes: [
-        {
-          shaderLocation: 2,
-          offset: 0,
-          format: "float32x2",
-        },
-      ],
-      arrayStride: 4 * 2,
-      stepMode: "vertex",
-    },
-  ];
-
-  const shaderVertexModule = device.createShaderModule({
-    code: shaderVertexCode,
-  });
-  const shaderFragmentModule = device.createShaderModule({
-    code: shaderFragmentCode,
-  });
-
-  const pipeline = device.createRenderPipeline({
-    vertex: {
-      module: shaderVertexModule,
-      entryPoint: "vertex_main",
-      buffers: vertexBuffersDescriptors,
-    },
-    fragment: {
-      module: shaderFragmentModule,
-      entryPoint: "fragment_main",
-      targets: [
-        {
-          format: presentationFormat,
-        },
-      ],
-    },
-    primitive: {
-      topology: "triangle-list",
-    },
-    layout: "auto",
-  });
-  return pipeline;
+  return { canvas, context, device };
 };
 
-const loadImageBitmap = async (src) => {
-  /*const res = await fetch(src);
-  const blob = await res.blob();
-  const imageBitmap = await createImageBitmap(blob, { colorSpaceConversion: "none" });
-  return imageBitmap;*/
-  const img = new Image();
-  img.src = src;
-  await img.decode();
-  const imageBitmap = await createImageBitmap(img);
-  return imageBitmap;
-};
-
-const getData = (imageBitmap) => {
-  const canvas = document.createElement("canvas");
-  canvas.width = imageBitmap.width;
-  canvas.height = imageBitmap.height;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(imageBitmap, 0, 0);
-
-  const imageData = ctx.getImageData(0, 0, imageBitmap.width, imageBitmap.height);
-  return imageData.data;
-};
-class Texture {
-  static async from(device, src) {
-    const imageBitmap = await loadImageBitmap(src);
-    const uint8Array = getData(imageBitmap);
-
-    /*const texture = device.createTexture({
-      size: [imageBitmap.width, imageBitmap.height],
-      format: "rgba8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-    device.queue.copyExternalImageToTexture({ source: imageBitmap0, flipY: true }, { texture: texture }, { width: imageBitmap.width, height: imageBitmap.height });*/
-
-    const texture = device.createTexture({
-      size: [imageBitmap.width, imageBitmap.height, 1],
-      format: "rgba8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-    device.queue.writeTexture({ texture }, uint8Array, { bytesPerRow: imageBitmap.width * 4, rowsPerImage: imageBitmap.height }, [imageBitmap.width, imageBitmap.height, 1]);
-    //const texture = device.importExternalTexture({ source: uint8Array, width: imageBitmap.width, height: imageBitmap.height });
-    return texture;
-  }
-}
 const init = async () => {
   const gpuInfo = await initGPU();
   if (!gpuInfo) return;
-  const { canvas, context, device, presentationFormat } = await gpuInfo;
-  const { vertexBuffer, colorBuffer, indexBuffer, uvBuffer } = createBuffers(device);
+  const { canvas, context, device } = await gpuInfo;
+  const geometry = Geometry.Box(device, 1, 1);
   const shaderCode = await require("./sharder.wgsl");
-  const pipeline = createPipeline(device, presentationFormat, shaderCode, shaderCode);
 
-  const uniformBufferSize = 1 * 4;
+  const uniformValues = new Float32Array(16 + 16);
   const uniformBuffer = device.createBuffer({
-    size: uniformBufferSize,
+    size: uniformValues.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  const uniformValues = new Float32Array(uniformBufferSize / 4);
-  uniformValues.set([1.0], 0);
+  const projectionMatrixValue = uniformValues.subarray(0, 16);
+  const modelViewMatrixValue = uniformValues.subarray(16, 16 + 16);
 
-  const texture = await Texture.from(device, "./image.jpg");
+  const projectionMatrix = mat4.create();
+  mat4.ortho(projectionMatrix, 0, canvas.clientWidth, canvas.clientHeight, 0, -1, 1);
+  projectionMatrixValue.set(projectionMatrix, 0);
 
-  const sampler = device.createSampler({
-    magFilter: "linear",
-    minFilter: "linear",
-  });
+  const modelViewMatrix = mat4.create();
+  mat4.identity(modelViewMatrix);
+  mat4.translate(modelViewMatrix, modelViewMatrix, [400.0, 300.0, 0.0]);
+  mat4.rotateZ(modelViewMatrix, modelViewMatrix, 0 * (Math.PI / 180));
+  mat4.scale(modelViewMatrix, modelViewMatrix, [100.0, 100.0, 0.0]);
+  modelViewMatrixValue.set(modelViewMatrix, 0);
 
-  const bindGroup = device.createBindGroup({
-    layout: pipeline.getBindGroupLayout(0),
-    entries: [
-      {
-        binding: 0,
-        resource: {
-          buffer: uniformBuffer,
-        },
-      },
-      {
-        binding: 1,
-        resource: sampler,
-      },
-      {
-        binding: 2,
-        resource: texture.createView(),
-      },
-    ],
-  });
+  const uniform = { type: "uniform", data: uniformBuffer };
 
-  const renderPassDescriptor = {
-    colorAttachments: [
-      {
-        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-        loadOp: "clear",
-        storeOp: "store",
-      },
-    ],
+  const sampler = {
+    type: "sampler",
+    data: device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+    }),
   };
-  let i = 0;
+  const texture = { type: "texture", data: await Texture.from(device, "./image.jpg") };
+
+  const shader = Shader.from(device, geometry.getVertexBuffersDescriptors(), shaderCode, shaderCode, [
+    { group: 0, binding: 0, data: uniform },
+    { group: 0, binding: 1, data: sampler },
+    { group: 0, binding: 2, data: texture },
+  ]);
+
   function frame() {
-    i += 0.001;
-    i %= 1;
-    uniformValues.set([Math.sin(i * 2 * Math.PI) * 0.5 + 0.5], 0);
     device.queue.writeBuffer(uniformBuffer, 0, uniformValues);
 
-    renderPassDescriptor.colorAttachments[0].view = context.getCurrentTexture().createView();
+    shader.setView(context.getCurrentTexture().createView());
     const commandEncoder = device.createCommandEncoder();
-    const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+    const passEncoder = commandEncoder.beginRenderPass(shader.renderPassDescriptor);
 
-    passEncoder.setPipeline(pipeline);
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setVertexBuffer(0, vertexBuffer);
-    passEncoder.setVertexBuffer(1, colorBuffer);
-    passEncoder.setVertexBuffer(2, uvBuffer);
-    passEncoder.setIndexBuffer(indexBuffer, "uint16");
-    passEncoder.drawIndexed(6);
+    shader.use(passEncoder);
+    geometry.use(passEncoder);
+    passEncoder.drawIndexed(geometry.indexLength);
     passEncoder.end();
 
     device.queue.submit([commandEncoder.finish()]);
