@@ -60,18 +60,6 @@ export default class Shader {
     }
     this.bindGroups = bindGroups;
     this.data = data;
-    this.renderPassDescriptor = {
-      colorAttachments: [
-        {
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
-    };
-  }
-  setView(view) {
-    this.renderPassDescriptor.colorAttachments[0].view = view;
   }
   use(passEncoder) {
     passEncoder.setPipeline(this.pipeline);

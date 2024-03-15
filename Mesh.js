@@ -1,9 +1,9 @@
 export default class Mesh {
-  constructor(gl, geometry, shader) {
-    this.gl = gl;
+  constructor(device, geometry, shader) {
+    this.device = device;
     this.geometry = geometry;
     this.shader = shader;
-    this.modelViewMatrix = { type: "matrix", data: mat4.create() };
+    this.modelViewMatrix = mat4.create();
     this._pos = [0, 0];
     this._rotation = 0;
     this._size = [100, 100];
@@ -35,19 +35,16 @@ export default class Mesh {
     return this._size;
   }
   updateModelViewMatrix() {
-    mat4.identity(this.modelViewMatrix.data);
-    mat4.translate(this.modelViewMatrix.data, this.modelViewMatrix.data, [...this._pos, 0.0]);
-    mat4.rotateZ(this.modelViewMatrix.data, this.modelViewMatrix.data, this._rotation * (Math.PI / 180));
-    mat4.scale(this.modelViewMatrix.data, this.modelViewMatrix.data, [...this._size, 0.0]);
+    mat4.identity(this.modelViewMatrix);
+    mat4.translate(this.modelViewMatrix, this.modelViewMatrix, [...this._pos, 0.0]);
+    mat4.rotateZ(this.modelViewMatrix, this.modelViewMatrix, this._rotation * (Math.PI / 180));
+    mat4.scale(this.modelViewMatrix, this.modelViewMatrix, [...this._size, 0.0]);
   }
-  use(uniforms) {
-    const gl = this.gl;
-    gl.useProgram(this.shader.program);
-    this.geometry.use(this.shader.program);
-    this.shader.use({ uModelViewMatrix: this.modelViewMatrix, ...uniforms });
+  use(passEncoder) {
+    this.shader.use(passEncoder);
+    this.geometry.use(passEncoder);
   }
-  draw() {
-    const gl = this.gl;
-    gl.drawElements(gl.TRIANGLE_STRIP, this.geometry.indexLength, gl.UNSIGNED_SHORT, 0);
+  draw(passEncoder) {  
+    passEncoder.drawIndexed(this.geometry.indexLength);
   }
 }

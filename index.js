@@ -1,6 +1,7 @@
 import Shader from "./Shader.js";
 import Geometry from "./Geometry.js";
 import Texture from "./Texture.js";
+import Mesh from "./Mesh.js";
 import { require } from "./fun.js";
 
 const initGPU = async () => {
@@ -32,6 +33,7 @@ const initGPU = async () => {
     device,
     format: "bgra8unorm",
     size: presentationSize,
+    alphaMode: "premultiplied",
   });
   return { canvas, context, device };
 };
@@ -43,24 +45,13 @@ const init = async () => {
   const geometry = Geometry.Box(device, 1, 1);
   const shaderCode = await require("./sharder.wgsl");
 
-  const uniformValues = new Float32Array(16 + 16);
   const uniformBuffer = device.createBuffer({
-    size: uniformValues.byteLength,
+    size: 32 * 4,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  const projectionMatrixValue = uniformValues.subarray(0, 16);
-  const modelViewMatrixValue = uniformValues.subarray(16, 16 + 16);
 
   const projectionMatrix = mat4.create();
   mat4.ortho(projectionMatrix, 0, canvas.clientWidth, canvas.clientHeight, 0, -1, 1);
-  projectionMatrixValue.set(projectionMatrix, 0);
-
-  const modelViewMatrix = mat4.create();
-  mat4.identity(modelViewMatrix);
-  mat4.translate(modelViewMatrix, modelViewMatrix, [400.0, 300.0, 0.0]);
-  mat4.rotateZ(modelViewMatrix, modelViewMatrix, 0 * (Math.PI / 180));
-  mat4.scale(modelViewMatrix, modelViewMatrix, [100.0, 100.0, 0.0]);
-  modelViewMatrixValue.set(modelViewMatrix, 0);
 
   const uniform = { type: "uniform", data: uniformBuffer };
 
@@ -79,19 +70,39 @@ const init = async () => {
     { group: 0, binding: 2, data: texture },
   ]);
 
+  const mesh = new Mesh(device, geometry, shader);
+  mesh.lockUpdate = true;
+  mesh.pos = [400, 300];
+  mesh.size = [50, 50];
+  mesh.rotation = 15;
+  mesh.lockUpdate = false;
+  mesh.updateModelViewMatrix();
+
+  const renderPassDescriptor = {
+    colorAttachments: [
+      {
+        //clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
+        loadOp: "clear",
+        storeOp: "store",
+      },
+    ],
+  };
   function frame() {
+    //mesh.rotation += 4;
+
+    const uniformValues = new Float32Array([...projectionMatrix, ...mesh.modelViewMatrix]);
     device.queue.writeBuffer(uniformBuffer, 0, uniformValues);
 
-    shader.setView(context.getCurrentTexture().createView());
+    renderPassDescriptor.colorAttachments[0].view = context.getCurrentTexture().createView();
     const commandEncoder = device.createCommandEncoder();
-    const passEncoder = commandEncoder.beginRenderPass(shader.renderPassDescriptor);
+    const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+    
+    mesh.use(passEncoder);
+    mesh.draw(passEncoder);
 
-    shader.use(passEncoder);
-    geometry.use(passEncoder);
-    passEncoder.drawIndexed(geometry.indexLength);
     passEncoder.end();
-
     device.queue.submit([commandEncoder.finish()]);
+
     requestAnimationFrame(frame);
   }
 
