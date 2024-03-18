@@ -1,12 +1,15 @@
 struct Uniforms {
     projectionMatrix: mat4x4f,
+};
+struct ModelUniforms {
     modelViewMatrix: mat4x4f,
 };
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+@group(0) @binding(1) var<uniform> modelUniforms : ModelUniforms;
 //@group(0) @binding(0) var<uniform> projectionMatrix: mat4x4f;
 //@group(0) @binding(1) var<uniform> modelViewMatrix: mat4x4f;
-@group(0) @binding(1) var mySampler: sampler;
-@group(0) @binding(2) var myTexture: texture_2d<f32>;
+@group(0) @binding(2) var mySampler: sampler;
+@group(0) @binding(3) var myTexture: texture_2d<f32>;
 //@group(0) @binding(0) var<uniform> scale : f32;
 struct VertexIn {
     @location(0) position : vec2f,
@@ -23,7 +26,7 @@ struct Varying {
 fn vertex_main(in : VertexIn) -> Varying
 {
     var output : Varying;
-    output.position = uniforms.projectionMatrix * (uniforms.modelViewMatrix * vec4f(in.position,0.0,1.0));
+    output.position = uniforms.projectionMatrix * (modelUniforms.modelViewMatrix * vec4f(in.position,0.0,1.0));
     output.color = in.color;
     output.uv = in.uv;
     return output;
