@@ -39,6 +39,15 @@ const initGPU = async () => {
   return { canvas, context, device };
 };
 
+function initStats() {
+  const stats = new Stats();
+  stats.setMode(0); // FPS mode
+  // stats.setMode(1) // MS
+  // stats.setMode(2) // MB
+  document.getElementById("stats").appendChild(stats.domElement);
+  return stats;
+}
+
 const init = async () => {
   const gpuInfo = await initGPU();
   if (!gpuInfo) return;
@@ -69,7 +78,7 @@ const init = async () => {
       { group: 0, binding: 2, data: sampler },
       { group: 0, binding: 3, data: texture.createView() },
     ]);
-    mesh.transform([Math.random() * 800, Math.random() * 400], [50, 50], Math.random() * 360);
+    mesh.transform([Math.random() * 800, Math.random() * 600], [50, 50], Math.random() * 360);
     meshList.push(mesh);
   }
 
@@ -89,7 +98,10 @@ const init = async () => {
       mesh.draw(passEncoder);
     });
   }
+  const statsUI = initStats();
   function frame() {
+    requestAnimationFrame(frame);
+    statsUI.update();
     //mesh.rotation += 4;
     meshList.forEach((mesh) => {
       mesh.rotation += 4;
@@ -102,7 +114,7 @@ const init = async () => {
     });
     renderPass(renderBundleEncoder);
     const renderBundle = renderBundleEncoder.finish();
-    
+
     const commandEncoder = device.createCommandEncoder();
     const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
     passEncoder.executeBundles([renderBundle]);
@@ -114,8 +126,6 @@ const init = async () => {
     renderPass(passEncoder);
     passEncoder.end();
     device.queue.submit([commandEncoder.finish()]);*/
-
-    requestAnimationFrame(frame);
   }
 
   requestAnimationFrame(frame);
